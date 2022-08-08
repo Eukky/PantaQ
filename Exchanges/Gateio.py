@@ -1,6 +1,6 @@
 # coding=utf-8
 
-from Exchange import Exchange
+from .Exchange import Exchange
 
 class Gateio(Exchange):
     def __init__(self, a):

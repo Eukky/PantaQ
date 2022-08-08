@@ -1,7 +1,7 @@
 # coding=utf-8
 
-import Gateio
-import Binance
+from Exchanges import Gateio
+from Exchanges import Binance
 
 class PantaQ():
 
@@ -35,3 +35,4 @@ class PantaQ():
 if __name__ == "__main__":
     p = PantaQ("gateio")
     p.get_exchange_info()
+    
