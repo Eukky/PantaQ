@@ -2,9 +2,10 @@
 from abc import ABCMeta, abstractclassmethod
 
 class Exchange(metaclass=ABCMeta):
-    def __init__(self, a):
-        print(a)
-
+    
+    def __init__(self):
+        pass
+        
     # @abstractclassmethod
     # def ping(self):
     #     pass 
