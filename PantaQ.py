@@ -3,17 +3,20 @@
 from Exchanges import Gateio
 from Exchanges import Binance
 
+import json
+
 class PantaQ():
 
     def __init__(self, exchange):
         self.exchange_name = exchange
+        self.support_exchanges = ['gateio', 'binance']
         if exchange == "gateio":
             self.exchange = Gateio.Gateio()
         elif exchange == "binance":
             self.exchange = Binance.Binance()
 
     def get_support_exchanges(self):
-        print("gateio, binance")
+       return self.support_exchanges
 
     def set_apikey(self, key, secret):
         self.exchange.set_apikey(key, secret)
@@ -22,13 +25,13 @@ class PantaQ():
         self.exchange.ping() 
 
     def get_sever_time(self):
-        self.exchange.get_sever_time()
+        return self.exchange.get_sever_time()
 
     def get_exchange_info(self):
-        self.exchange.get_exchange_info()
+        return self.exchange.get_exchange_info()
 
     def get_account_info(self):
-        self.exchange.get_account_info()
+        return self.exchange.get_account_info()
     
 
 if __name__ == "__main__":
@@ -38,5 +41,8 @@ if __name__ == "__main__":
     key = ''        # api_key
     secret = '' 
     p.set_apikey(key, secret)
-    p.get_account_info()
-    
+    account_info = p.get_account_info()
+    print(account_info)
+    # fp = open("result.json","a+")
+    # print(account_info, file=fp)
+    # fp.close() 
