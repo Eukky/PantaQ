@@ -16,9 +16,14 @@ class Exchange(metaclass=ABCMeta):
     def get_sever_time(self):
         pass
 
-    #获取交易所信息
+    # 获取交易所信息
     @abstractclassmethod
     def get_exchange_info(self):
+        pass
+
+    # 设置api key
+    @abstractclassmethod
+    def set_apikey(self, api, secret):
         pass
 
     # 查询该货币所有合约信息
@@ -33,7 +38,7 @@ class Exchange(metaclass=ABCMeta):
 
     # 查看订单深度信息
     @abstractclassmethod
-    def get_future_order_book(self, settle, contract, interval, limit, id):
+    def get_future_order_book(self, settle, contract, interval, limit, with_id):
         pass
 
     # 查看成交记录
@@ -78,7 +83,7 @@ class Exchange(metaclass=ABCMeta):
 
     # 获取合约账号
     @abstractclassmethod
-    def get_account_info(self, settle):
+    def get_future_account_info(self, settle):
         pass
 
     # 查询合约账户变更历史
@@ -188,7 +193,7 @@ class Exchange(metaclass=ABCMeta):
     
     # 创建价格触发订单
     @abstractclassmethod
-    def set_future_price_orders(self, settle, contract, size, price, close, tif, text, reduce_only, auto_size, strategy_type, price_type, price, rule, expiration, order_type):
+    def set_future_price_orders(self, settle, contract, size, price, close, tif, text, reduce_only, auto_size, strategy_type, price_type, rule, expiration, order_type):
         pass
     
     # 查询自动订单列表
