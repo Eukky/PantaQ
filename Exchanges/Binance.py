@@ -7,4 +7,4 @@ class Binance(Exchange):
         pass
 
     def get_exchange_info(self):
-        print("is binance")
+        print("binance")

@@ -156,9 +156,14 @@ class Exchange(metaclass=ABCMeta):
     def cancle_future_orders(self, settle, contract, side):
         pass
 
+    # 创建订单
+    @abstractclassmethod
+    def make_future_orders(self, orders, contract, size, iceberg, price, close, reduce_only, tif, text, auto_size):
+        pass
+
     # 合约交易批量下单
     @abstractclassmethod
-    def set_future_batch_orders(self, settle, contract, size, iceberg, price, close, reduce_only, tif, text, auto_size):
+    def set_future_batch_orders(self, settle, orders):
         pass
 
     # 查询单个订单详情
@@ -193,12 +198,12 @@ class Exchange(metaclass=ABCMeta):
     
     # 创建价格触发订单
     @abstractclassmethod
-    def set_future_price_orders(self, settle, contract, size, price, close, tif, text, reduce_only, auto_size, strategy_type, price_type, rule, expiration, order_type):
+    def set_future_price_orders(self, settle, contract, price, size, close, tif, text, reduce_only, auto_size, strategy_type, price_type, trigger_price, rule, expiration, order_type):
         pass
     
     # 查询自动订单列表
     @abstractclassmethod
-    def get_future_price_orders(self, settle, contract, status, limit, offset):
+    def get_future_price_orders(self, settle, status, contract, limit, offset):
         pass
 
     # 批量取消自动订单

@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # print(p.get_sever_time())
 
-    print(p.get_future_order_book(settle, contract, 1, 5, True))
+    print(p.get_future_order_book(settle, contract))
 
     # account_info = p.get_account_info()
     # print(account_info)
