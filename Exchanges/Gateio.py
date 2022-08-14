@@ -277,9 +277,7 @@ class Gateio(Exchange):
     def set_future_orders(self, settle, contract, size, iceberg, price, close, reduce_only, tif, text, auto_size):
         self.url = '/futures/' + str(settle) + '/orders'
         self.query_param = ''
-        data = {}
-        data['contract'] = str(contract)
-        data['size'] = str(size)
+        data = {'contract': str(contract), 'size': str(size)}
         if iceberg:
             data['iceberg'] = str(iceberg)
         if price:
@@ -388,9 +386,7 @@ class Gateio(Exchange):
     def update_future_orders_with_id(self, settle, order_id, size, price):
         self.url = '/futures/' + str(settle) + '/orders/' + str(order_id)
         self.query_param = ''
-        data = {}
-        data['size'] = size
-        data['price'] = price
+        data = {'size': size, 'price': price}
         body = json.dumps(data)
         sign_headers = self.__gen_sign('PUT', self.prefix + self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
