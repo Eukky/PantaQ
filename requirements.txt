@@ -1,0 +1,3 @@
+requests>=2.27.1
+gate-api>=4.26.0
+binance-connector>=1.16.0
