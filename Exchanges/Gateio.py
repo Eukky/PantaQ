@@ -18,6 +18,13 @@ class Gateio(Exchange):
         self.secret = ''
         self.query_param = ''
 
+    def set_simulation(self, is_sim):
+        if is_sim:
+            self.host = "https://fx-api-testnet.gateio.ws"
+        else:
+            self.host = "https://api.gateio.ws"
+
+
     def __gen_sign(self, method, url, query_string, payload_string):
         t = time.time()
         m = hashlib.sha512()

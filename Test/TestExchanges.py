@@ -8,10 +8,11 @@ if __name__ == "__main__":
 
     config = Config.Config()
 
-    key = config.gateio.key
-    secret = config.gateio.secret 
+    key = config.gateio.key_sim
+    secret = config.gateio.secret_sim
 
     p = PantaQ.PantaQ("gateio")
+    p.set_simulation(True)
     p.get_exchange_info()
     p.set_apikey(key, secret)
 
@@ -20,10 +21,10 @@ if __name__ == "__main__":
 
     # print(p.get_sever_time())
 
-    print(p.get_future_order_book(settle, contract))
+    # print(p.get_future_order_book(settle, contract))
 
-    # account_info = p.get_account_info()
-    # print(account_info)
+    account_info = p.get_future_account_info(settle)
+    print(account_info)
 
     # settle = "usdt"
     # all_future_info = p.get_all_future_info(settle)

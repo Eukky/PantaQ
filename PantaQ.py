@@ -19,6 +19,9 @@ class PantaQ():
     def set_apikey(self, key, secret):
         self.exchange.set_apikey(key, secret)
 
+    def set_simulation(self, is_sim):
+        self.exchange.set_simulation(is_sim)
+
     def ping(self):
         self.exchange.ping() 
 
@@ -62,7 +65,7 @@ class PantaQ():
         return self.exchange.get_future_liq_orders(settle, contract, start_time, end_time, limit)
 
     def get_future_account_info(self, settle):
-        return self.exchange.get_account_info(settle)
+        return self.exchange.get_future_account_info(settle)
 
     def get_future_account_book(self, settle, limit=None, start_time=None, end_time=None, type=None):
         return self.exchange.get_future_account_book(settle, limit, start_time, end_time, type)
@@ -134,7 +137,7 @@ class PantaQ():
         return self.exchange.set_future_price_orders(settle, contract, size, price, close, tif, text, reduce_only, auto_size, strategy_type, price_type, trigger_price, rule, expiration, order_type)
     
     def get_future_price_orders(self, settle, status, contract=None, limit=None, offset=None):
-        return self.exchange.get_future_price_orders(settle, status, contract, limit, offset):
+        return self.exchange.get_future_price_orders(settle, status, contract, limit, offset)
     
     def cancle_future_price_orders(self, settle, contract):
         return self.exchange.cancle_future_price_orders(settle, contract)
