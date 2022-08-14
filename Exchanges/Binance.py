@@ -2,6 +2,7 @@
 
 from .Exchange import Exchange
 
+
 class Binance(Exchange):
     def __init__(self):
         pass
