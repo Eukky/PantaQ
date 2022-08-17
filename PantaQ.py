@@ -109,8 +109,8 @@ class PantaQ():
     def get_future_orders(self, settle, contract, status, limit=None, offset=None, last_id=None, count_total=None):
         return self.exchange.get_future_orders(settle, contract, status, limit, offset, last_id, count_total)
 
-    def cancel_future_orders(self, settle, contract, side):
-        return self.exchange.cancel_future_orders(settle, contract, side)
+    def cancel_future_orders(self, settle, contract):
+        return self.exchange.cancel_future_orders(settle, contract)
 
     def make_future_orders(self, orders, contract, size, iceberg=None, price=None, close=None, reduce_only=None,
                            tif=None, text=None, auto_size=None):
@@ -126,7 +126,7 @@ class PantaQ():
     def cancel_future_orders_with_id(self, settle, order_id):
         return self.exchange.cancel_future_orders_with_id(settle, order_id)
 
-    def update_future_orders_with_id(self, settle, order_id):
+    def update_future_orders_with_id(self, settle, order_id, size, price):
         return self.exchange.update_future_orders_with_id(settle, order_id, size, price)
 
     def get_future_my_trades(self, settle, contract=None, order=None, limit=None, offset=None, last_id=None,

@@ -314,7 +314,7 @@ class Gateio(Exchange):
         r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
         return r.json()
 
-    def cancel_future_orders(self, settle, contract, side):
+    def cancel_future_orders(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/orders'
         self.query_param = 'contract=' + str(contract)
         sign_headers = self.__gen_sign('DELETE', self.prefix + self.url, "", self.query_param)

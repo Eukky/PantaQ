@@ -154,7 +154,7 @@ class Exchange(metaclass=ABCMeta):
 
     # 批量取消状态为 open 的订单
     @abstractmethod
-    def cancel_future_orders(self, settle, contract, side):
+    def cancel_future_orders(self, settle, contract):
         pass
 
     # 创建订单
@@ -179,7 +179,7 @@ class Exchange(metaclass=ABCMeta):
 
     # 修改单个订单
     @abstractmethod
-    def update_future_orders_with_id(self, settle, order_id):
+    def update_future_orders_with_id(self, settle, order_id, size, price):
         pass
 
     # 查询个人成交记录
