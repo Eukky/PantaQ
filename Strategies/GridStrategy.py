@@ -33,6 +33,12 @@ class TransactionType(Enum):
     FUTURES = 3
 
 
+class OrderSide(Enum):
+    NONE = 0
+    MORE = 1
+    LESS = 2
+
+
 class GridStrategy(Strategy):
 
     def __init__(self):
@@ -72,6 +78,8 @@ class GridStrategy(Strategy):
         self._leverage: int = 0
         # 每格盈利
         self._profit_per_grid: float = 0
+        # 每格宽度
+        self._grids_width = []
 
         # 总投资额
         self._total_fund: float = 0
@@ -83,6 +91,7 @@ class GridStrategy(Strategy):
         self._exchange: Exchange = None
         self._is_running: bool = False
         self._orders: list = []
+        self._target_orders: list = []
 
     def export_strategy(self):
         strategy_config = {'grid_type': str(self._grid_type), 'grid_side': str(self._grid_side),
@@ -120,69 +129,106 @@ class GridStrategy(Strategy):
         return atr
 
     def init_orders(self, prices: list):
-        orders = []
         num = prices.len()
         for i in range(0, num):
             if i < num / 2:
                 price = prices[i]
+                order = {'price': price, 'side': OrderSide.MORE}
+                self._orders.append(order)
                 # 开买单
             else:
                 # 开卖单
                 price = prices[i]
+                order = {'price': price, 'side': OrderSide.LESS}
+                self._orders.append(order)
 
-        return orders
+    def calculate_grids_width(self, taker_fee_rate):
+        for order in self._orders:
+            if order['side'] == OrderSide.MORE:
+                target_price = order['price'] * (1 + (self._profit_per_grid - taker_fee_rate))
+                width = target_price - order['price']
+                self._grids_width.append(width)
+                self._target_orders.append({'price': target_price, 'side': OrderSide.LESS})
+            elif order['side'] == OrderSide.LESS:
+                target_price = order['price'] * (1 - (self._profit_per_grid - taker_fee_rate))
+                width = order['price'] - target_price
+                self._grids_width.append(width)
+                self._target_orders.append({'price': target_price, 'side': OrderSide.MORE})
 
     def execute_strategy(self):
+        self._orders = []
+        self._is_running = True
+
+        # 查询合约目前的情况
+        contract_info = self._exchange.get_future_info(self._settle, self._contract)
+        contract_order_book = self._exchange.get_future_order_book(self._settle, self._contract)
+        funding_rate = self._exchange.get_future_funding_rate(self._settle, self._contract)
+
+        if self._strategy_type == StrategyType.AUTO:
+            # 计算均值，布林线等指标
+            # todo
+            pass
+
+        # 查询目前挂单
+        if self._exchange:
+            current_orders = self._exchange.get_future_orders(self._settle, self._contract)
+        else:
+            print("未设置指定交易所，策略终止")
+            return
+
+        # 如果已经有挂单，则取消挂单
+        if current_orders:
+            self._exchange.cancel_future_orders(self._settle, self._contract)
+
+        # 计算ATR
+        atr = self.calculate_atr(14)
+
+        # 计算网格数量
+        self._grid_num = int((self._top_price - self._bottle_price) / atr)
+
+        # 计算网格价位
+        prices = []
+        if self._grid_type == GridType.EQUAL_DIFFERENCE:
+            for i in range(0, self._grid_num):
+                diff = (self._top_price - self._bottle_price) / self._grid_num
+                self._equal_difference = diff
+                price = self._bottle_price + i * diff
+                prices.append(price)
+        elif self._grid_type == GridType.EQUAL_RATIO:
+            for i in range(0, self._grid_num):
+                diff = pow(self._top_price / self._bottle_price, 1 / self._grid_num)
+                self._equal_ratio = diff
+                price = self._bottle_price * pow(diff, i)
+                prices.append(price)
+        else:
+            print("请指定网格类型")
+            return
+
+        # 计算下单列表
+        self.init_orders(prices)
+
+        # 计算每格宽度
+        taker_fee_rate = contract_info['taker_fee_rate']
+        self.calculate_grids_width(taker_fee_rate)
+
+        # 开单
+        for order in self._orders:
+            self._exchange.set_future_orders(self._settle, self._contract, price=order['price'])
+
+        # 策略主循环
+        self.strategy_loop()
+
+    def strategy_loop(self):
         while self._is_running:
-            # 查询合约目前的情况
-            contract_info = self._exchange.get_future_info(self._settle, self._contract)
-            contract_order_book = self._exchange.get_future_order_book(self._settle, self._contract)
-            funding_rate = self._exchange.get_future_funding_rate(self._settle, self._contract)
-
-            if self._strategy_type == StrategyType.AUTO:
-                # 计算均值，布林线等指标
-                pass
-
             # 查询目前挂单
-            if self._exchange:
-                self._orders = self._exchange.get_future_orders(self._settle, self._contract)
-            else:
-                print("未设置指定交易所，策略终止")
-                break
-
-            # 如果已经有挂单，则取消挂单
-            if self._orders:
-                self._exchange.cancel_future_orders(self._settle, self._contract)
-
-            # 计算ATR
-            atr = self.calculate_atr(14)
-
-            # 计算网格数量
-            self._grid_num = int((self._top_price - self._bottle_price) / atr)
-
-            # 计算网格价位
-            prices = []
-            if self._grid_type == GridType.EQUAL_DIFFERENCE:
-                for i in range(0, self._grid_num):
-                    diff = (self._top_price - self._bottle_price) / self._grid_num
-                    self._equal_difference = diff
-                    price = self._bottle_price + i * diff
-                    prices.append(price)
-            elif self._grid_type == GridType.EQUAL_RATIO:
-                for i in range(0, self._grid_num):
-                    diff = pow(self._top_price / self._bottle_price, 1 / self._grid_num)
-                    self._equal_ratio = diff
-                    price = self._bottle_price * pow(diff, i)
-                    prices.append(price)
-            else:
-                print("请指定网格类型")
-
-            # 计算下单列表
-            self.init_orders(prices)
-
-
-
-
+            current_orders = self._exchange.get_future_orders(self._settle, self._contract)
+            sorted_current_orders = sorted(current_orders, key=lambda orders: orders.get("price", 0))
+            current_orders_num = current_orders.len()
+            orders_num = self._orders.len()
+            if current_orders_num < orders_num:
+                for i in range(0, orders_num):
+                    if sorted_current_orders[i]["price"] != self._orders[i]["price"]:
+                        pass
 
 
 if __name__ == "__main__":
