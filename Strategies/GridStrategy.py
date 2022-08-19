@@ -225,10 +225,26 @@ class GridStrategy(Strategy):
             sorted_current_orders = sorted(current_orders, key=lambda orders: orders.get("price", 0))
             current_orders_num = current_orders.len()
             orders_num = self._orders.len()
+            last_price = 0
+            price_down = 0
+            price_up = 0
+
             if current_orders_num < orders_num:
                 for i in range(0, orders_num):
                     if sorted_current_orders[i]["price"] != self._orders[i]["price"]:
-                        pass
+                        last_price = self._orders[i]["price"]
+                        if i > 0:
+                            price_down = self._orders[i - 1]["price"]
+                        if i < orders_num - 1:
+                            price_up = self._orders[i + 1]["price"]
+
+                order_down =  {'price': price_down, 'side': OrderSide.MORE}
+                order_up = {'price': price_up, 'side': OrderSide.LESS}
+                if sorted_current_orders[i - 1] != order_down:
+                    self._exchange.set_future_orders(self._settle, self._contract, price=price_down)
+
+                if sorted_current_orders[i] != order_up:
+                    self._exchange.set_future_orders(self._settle, self._contract, price=price_up)
 
 
 if __name__ == "__main__":
