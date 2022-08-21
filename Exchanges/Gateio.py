@@ -3,27 +3,54 @@
 import time
 import hashlib
 import hmac
+
+import gate_api
 import requests
 import json
-from .Exchange import Exchange
+import configparser
+from . import DataParser
+from . import Exchange
+from gate_api import ApiClient, Configuration, FuturesApi, FuturesOrder, Transfer, WalletApi
 
 
-class Gateio(Exchange):
+class Gateio(Exchange.Exchange):
     def __init__(self):
         self.info = "gateio"
-        self.host = "https://api.gateio.ws"
-        self.prefix = "/api/v4"
+        self.host = "https://api.gateio.ws/api/v4"
         self.common_headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
         self.url = ''
         self.api = ''
         self.secret = ''
         self.query_param = ''
 
-    def set_simulation(self, is_sim):
-        if is_sim:
-            self.host = "https://fx-api-testnet.gateio.ws"
+        self._info = "gateio"
+
+        self._configuration = None
+        self._api_client = None
+        self._api_instance = None
+
+        self._is_test = False
+        self._key = ""
+        self._secret = ""
+        self._host = ""
+
+    def load_config(self, path, section):
+        config = configparser.ConfigParser()
+        config.read(path, encoding="utf-8")
+        self._is_test = bool(config.get(section, "is_test"))
+        if self._is_test:
+            self._key = config.get(section, "key_test")
+            self._secret = config.get(section, "secret_test")
+            self._host = "https://fx-api-testnet.gateio.ws/api/v4"
         else:
-            self.host = "https://api.gateio.ws"
+            self._key = config.get(section, "key")
+            self._secret = config.get(section, "secret")
+            self._host = "https://api.gateio.ws/api/v4"
+
+        self._configuration = gate_api.Configuration(key=self._key, secret=self._secret, host=self._host)
+        self._api_client = gate_api.ApiClient(self._configuration)
+        self._api_instance = gate_api.FuturesApi(self._api_client)
+
 
     def __gen_sign(self, method, url, query_string, payload_string):
         t = time.time()
@@ -34,29 +61,22 @@ class Gateio(Exchange):
         sign = hmac.new(self.secret.encode('utf-8'), s.encode('utf-8'), hashlib.sha512).hexdigest()
         return {'KEY': self.api, 'Timestamp': str(t), 'SIGN': sign}
 
-    def ping(self):
-        return
-
     def get_sever_time(self):
         self.url = '/spot/time'
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
-
-    def set_apikey(self, api, secret):
-        self.api = api
-        self.secret = secret
 
     def get_exchange_info(self):
         return self.info
 
     def get_all_future_info(self, settle):
         self.url = '/futures/' + str(settle) + '/contracts'
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_info(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/contracts/' + str(contract)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_order_book(self, settle, contract, interval, limit, with_id):
@@ -68,7 +88,7 @@ class Gateio(Exchange):
             self.query_param += '&' + 'limit=' + str(limit)
         if with_id:
             self.query_param += '&' + 'with_id=' + str("true")
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
@@ -83,31 +103,21 @@ class Gateio(Exchange):
             self.query_param += '&' + 'from=' + str(start_time)
         if end_time:
             self.query_param += '&' + 'to=' + str(end_time)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
-    def get_future_candlesticks(self, settle, contract, start_time, end_time, limit, interval):
-        self.url = '/futures/' + str(settle) + '/candlesticks'
-        self.query_param = 'contract=' + str(contract)
-        if start_time:
-            self.query_param += '&' + 'from=' + str(start_time)
-        if end_time:
-            self.query_param += '&' + 'to=' + str(end_time)
-        if limit:
-            self.query_param += '&' + 'limit=' + str(limit)
-        if interval:
-            self.query_param += '&' + 'interval=' + str(interval)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
-                             headers=self.common_headers)
-        return r.json()
+    def get_future_candlesticks(self, settle, contract, **kwargs):
+        response = self._api_instance.list_futures_candlesticks(settle, contract, **kwargs)
+        parse_data = DataParser.parse_candlesticks(response, self._info)
+        return parse_data
 
     def get_future_tickers(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/tickers'
         self.query_param = ''
         if contract:
             self.query_param += 'contract=' + str(contract)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
@@ -116,7 +126,7 @@ class Gateio(Exchange):
         self.query_param = 'contract=' + str(contract)
         if limit:
             self.query_param += '&' + 'limit=' + str(limit)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
@@ -125,7 +135,7 @@ class Gateio(Exchange):
         self.query_param = ''
         if limit:
             self.query_param += '&' + 'limit=' + str(limit)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
@@ -138,14 +148,14 @@ class Gateio(Exchange):
             self.query_param += '&' + 'interval=' + str(interval)
         if limit:
             self.query_param += '&' + 'limit=' + str(limit)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
     def get_future_constituents(self, settle, index):
         self.url = '/futures/' + str(settle) + '/index_constituents/' + str(index)
         self.query_param = ''
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
@@ -160,15 +170,15 @@ class Gateio(Exchange):
             self.query_param += '&' + 'to=' + str(end_time)
         if limit:
             self.query_param += '&' + 'limit=' + str(limit)
-        r = requests.request('GET', self.host + self.prefix + self.url + "?" + self.query_param,
+        r = requests.request('GET', self.host + self.url + "?" + self.query_param,
                              headers=self.common_headers)
         return r.json()
 
     def get_future_account_info(self, settle):
         self.url = '/futures/' + str(settle) + '/accounts'
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_account_book(self, settle, limit, start_time, end_time, type):
@@ -182,33 +192,33 @@ class Gateio(Exchange):
             self.query_param += '&' + 'to=' + str(end_time)
         if type:
             self.query_param += '&' + 'type=' + str(type)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_positions(self, settle):
         self.url = '/futures/' + str(settle) + '/positions'
         self.query_param = ''
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_contract_position(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/positions/' + str(contract)
         self.query_param = ''
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_position_margin(self, settle, contract, change):
         self.url = '/futures/' + str(settle) + '/positions/' + str(contract) + "/margin"
         self.query_param = 'change=' + str(change)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_position_leverage(self, settle, contract, leverage, cross_leverage_limit):
@@ -216,17 +226,17 @@ class Gateio(Exchange):
         self.query_param = 'leverage=' + str(leverage)
         if cross_leverage_limit:
             self.query_param += '&' + 'cross_leverage_limit=' + str(cross_leverage_limit)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_position_risk_limit(self, settle, contract, risk_limit):
         self.url = '/futures/' + str(settle) + '/positions/' + str(contract) + "/risk_limit"
         self.query_param = 'risk_limit=' + str(risk_limit)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def set_future_dual_mode(self, settle, dual_mode):
@@ -235,25 +245,25 @@ class Gateio(Exchange):
             self.query_param = 'dual_mode=true'
         else:
             self.query_param = 'dual_mode=false'
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_dual_comp_position(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/dual_comp/positions/' + str(contract)
         self.query_param = ''
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_dual_comp_position_margin(self, settle, contract, change, dual_side):
         self.url = '/futures/' + str(settle) + '/dual_comp/positions/' + str(contract) + '/margin'
         self.query_param = 'change=' + str(change) + '&' + 'dual_side=' + str(dual_side)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_dual_comp_position_leverage(self, settle, contract, leverage, cross_leverage_limit):
@@ -261,17 +271,17 @@ class Gateio(Exchange):
         self.query_param = 'leverage=' + str(leverage)
         if cross_leverage_limit:
             self.query_param += '&' + 'cross_leverage_limit=' + cross_leverage_limit
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_dual_comp_position_risk_limit(self, settle, risk_limit):
         self.url = '/futures/' + str(settle) + '/dual_comp/positions/' + str(contract) + '/risk_limit'
         self.query_param = 'risk_limit=' + str(risk_limit)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def set_future_orders(self, settle, contract, size, iceberg, price, close, reduce_only, tif, text, auto_size):
@@ -293,9 +303,9 @@ class Gateio(Exchange):
         if auto_size:
             data['auto_size'] = str(auto_size)
         body = json.dumps(data)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, self.query_param, body)
+        sign_headers = self.__gen_sign('POST', self.url, self.query_param, body)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_orders(self, settle, contract, status, limit, offset, last_id, count_total):
@@ -309,17 +319,17 @@ class Gateio(Exchange):
             self.query_param += '&' + 'last_id=' + str(last_id)
         if count_total:
             self.query_param += '&' + 'count_total=' + str(count_total)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def cancel_future_orders(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/orders'
         self.query_param = 'contract=' + str(contract)
-        sign_headers = self.__gen_sign('DELETE', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('DELETE', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('DELETE', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('DELETE', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def make_future_orders(self, orders, contract, size, iceberg, price, close, reduce_only, tif, text, auto_size):
@@ -362,25 +372,25 @@ class Gateio(Exchange):
             if 'auto_size' in order:
                 data['auto_size'] = str(order['auto_size'])
             body.append(json.dumps(data))
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, self.query_param, body)
+        sign_headers = self.__gen_sign('POST', self.url, self.query_param, body)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_orders_with_id(self, settle, order_id):
         self.url = '/futures/' + str(settle) + '/orders/' + str(order_id)
         self.query_param = ''
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def cancel_future_orders_with_id(self, settle, order_id):
         self.url = '/futures/' + str(settle) + '/orders/' + str(order_id)
         self.query_param = ''
-        sign_headers = self.__gen_sign('DELETE', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('DELETE', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('DELETE', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('DELETE', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def update_future_orders_with_id(self, settle, order_id, size, price):
@@ -388,9 +398,9 @@ class Gateio(Exchange):
         self.query_param = ''
         data = {'size': size, 'price': price}
         body = json.dumps(data)
-        sign_headers = self.__gen_sign('PUT', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('PUT', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('PUT', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('PUT', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_my_trades(self, settle, contract, order, limit, offset, last_id, count_total):
@@ -408,9 +418,9 @@ class Gateio(Exchange):
             self.query_param += '&' + 'last_id=' + str(last_id)
         if count_total:
             self.query_param += '&' + 'count_total=' + str(count_total)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_position_close(self, settle, contract, limit, offset, start_time, end_time):
@@ -426,9 +436,9 @@ class Gateio(Exchange):
             self.query_param += '&' + 'from=' + str(start_time)
         if end_time:
             self.query_param += '&' + 'to=' + str(end_time)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_liquidates(self, settle, contract, limit, at_time):
@@ -440,9 +450,9 @@ class Gateio(Exchange):
             self.query_param += '&' + 'limit=' + str(limit)
         if at_time:
             self.query_param += '&' + 'at=' + str(at_time)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def set_future_price_orders(self, settle, contract, price, size, close, tif, text, reduce_only, auto_size,
@@ -479,9 +489,9 @@ class Gateio(Exchange):
             order_type['order_type'] = order_type
         data = {initial, trigger, order_type}
         body = json.dumps(data)
-        sign_headers = self.__gen_sign('POST', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('POST', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('POST', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('POST', self.host + self.url, headers=self.common_headers)
         return r.json()
         return
 
@@ -494,31 +504,31 @@ class Gateio(Exchange):
             self.query_param += '&' + 'limit=' + str(limit)
         if offset:
             self.query_param += '&' + 'offset=' + str(offset)
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def cancel_future_price_orders(self, settle, contract):
         self.url = '/futures/' + str(settle) + '/price_orders'
         self.query_param = 'contract=' + str(contract)
-        sign_headers = self.__gen_sign('DELETE', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('DELETE', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('DELETE', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('DELETE', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def get_future_price_orders_with_id(self, settle, order_id):
         self.url = '/futures/' + str(settle) + '/price_orders/' + str(order_id)
         self.query_param = ''
-        sign_headers = self.__gen_sign('GET', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('GET', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('GET', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('GET', self.host + self.url, headers=self.common_headers)
         return r.json()
 
     def cancel_future_price_orders_with_id(self, settle, order_id):
         self.url = '/futures/' + str(settle) + '/price_orders/' + str(order_id)
         self.query_param = ''
-        sign_headers = self.__gen_sign('DELETE', self.prefix + self.url, "", self.query_param)
+        sign_headers = self.__gen_sign('DELETE', self.url, "", self.query_param)
         self.common_headers.update(sign_headers)
-        r = requests.request('DELETE', self.host + self.prefix + self.url, headers=self.common_headers)
+        r = requests.request('DELETE', self.host + self.url, headers=self.common_headers)
         return r.json()

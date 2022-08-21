@@ -17,15 +17,6 @@ class PantaQ():
     def get_support_exchanges(self):
         return self.support_exchanges
 
-    def set_apikey(self, key, secret):
-        self.exchange.set_apikey(key, secret)
-
-    def set_simulation(self, is_sim):
-        self.exchange.set_simulation(is_sim)
-
-    def ping(self):
-        self.exchange.ping()
-
     def get_sever_time(self):
         return self.exchange.get_sever_time()
 

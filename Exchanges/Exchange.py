@@ -7,10 +7,6 @@ class Exchange(metaclass=ABCMeta):
     def __init__(self):
         pass
 
-    # 测试服务器通信
-    @abstractmethod
-    def ping(self):
-        pass
 
     # 获取服务器时间
     @abstractmethod
@@ -20,11 +16,6 @@ class Exchange(metaclass=ABCMeta):
     # 获取交易所信息
     @abstractmethod
     def get_exchange_info(self):
-        pass
-
-    # 设置api key
-    @abstractmethod
-    def set_apikey(self, api, secret):
         pass
 
     # 查询该货币所有合约信息
